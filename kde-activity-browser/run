@@ -1,0 +1,36 @@
+#!/bin/bash
+# from https://geek.co.il/2018/07/30/script-day-different-default-browser-per-kde-activity
+export DBUS_SESSION_BUS_ADDRESS=$(cat $HOME/env/DBUS_SESSION_BUS_ADDRESS)
+
+function readconf() {
+	kreadconfig5 --group General --key BrowserApplication
+}
+
+function writeconf() {
+	kwriteconfig5  --group General --key BrowserApplication "$1"
+}
+
+service=org.kde.ActivityManager
+interface=$service.Activities
+path=/ActivityManager/Activities
+signal=CurrentActivityChanged
+dbus-monitor --profile "type=signal,path=$path,interface=$interface,member=$signal" | \
+	while read type timestamp serial sender destination path interface member; do
+		[ "$member" == "$signal" ] || continue
+		curact=$(qdbus $service $path $interface.CurrentActivity)
+		name="$(qdbus $service $path $interface.ActivityName $curact)"
+		echo "Switched to activity $name"
+		echo "Previous browser is $(readconf)"
+		case "$name" in
+			"peckham")
+				writeconf firefox.desktop
+				;;
+			"bracken house")
+				writeconf chromium.desktop
+				;;
+			*) # default in case a new activity is created
+				writeconf firefox.desktop
+				;;
+		esac
+		echo "Current Browser is $(readconf)"
+	done
